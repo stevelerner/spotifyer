@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 try:
@@ -28,12 +29,39 @@ SCOPES = [
 
 CACHE_PATH = os.path.join(os.getcwd(), ".cache-spm")
 
+# Rate limiting: min 0.1s between API calls to avoid hitting Spotify's rate limits.
+# Spotify's rate limits are typically 429 errors after ~150-200 req/sec per client.
+_RATE_LIMIT_DELAY = 0.15
+
+
+class _RateLimitedSpotify:
+    """Wrapper around spotipy.Spotify that adds rate limiting to search operations."""
+
+    def __init__(self, sp: "spotipy.Spotify"):
+        self._sp = sp
+        self._last_call_time = 0.0
+
+    def _throttle(self) -> None:
+        """Enforce minimum delay between API calls."""
+        elapsed = time.time() - self._last_call_time
+        if elapsed < _RATE_LIMIT_DELAY:
+            time.sleep(_RATE_LIMIT_DELAY - elapsed)
+        self._last_call_time = time.time()
+
+    def search(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        self._throttle()
+        return self._sp.search(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        """Pass through all other methods to the underlying spotipy client."""
+        return getattr(self._sp, name)
+
 
 class SpmError(RuntimeError):
     """User-facing error; printed without a traceback."""
 
 
-def get_client(open_browser: bool = True) -> "spotipy.Spotify":
+def get_client(open_browser: bool = True) -> "_RateLimitedSpotify":
     missing = [
         k
         for k in ("SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "SPOTIPY_REDIRECT_URI")
@@ -50,7 +78,8 @@ def get_client(open_browser: bool = True) -> "spotipy.Spotify":
         cache_path=CACHE_PATH,
         open_browser=open_browser,
     )
-    return spotipy.Spotify(auth_manager=auth, retries=3, requests_timeout=30)
+    sp = spotipy.Spotify(auth_manager=auth, retries=3, requests_timeout=30)
+    return _RateLimitedSpotify(sp)
 
 
 # --- pagination -----------------------------------------------------------------
