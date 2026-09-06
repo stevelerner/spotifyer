@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -156,6 +158,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# spotifyer-specific cache
+.cache-spm
 
 # Spyder project settings
 .spyderproject
@@ -216,3 +221,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# spotifyer local files
+backup/
+dumps/
+playlists/
+*.local.txt
+screenshots/
