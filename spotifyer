@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# spotifyer — master CLI. One entrypoint for humans and AI agents to drive the
+# `spm` playlist manager without touching the virtualenv or PYTHONPATH.
+#
+# Usage:
+#   ./spotifyer <command> [args...]
+#
+# Meta commands (handled here):
+#   setup            create/refresh the virtualenv and install deps
+#   doctor           check credentials + auth token, exit non-zero if not ready
+#   login            run the OAuth flow (browser) and cache a token
+#   commands         print the machine-readable command manifest (for agents)
+#   help             this text
+#
+# Pass-through to `python -m spm` (see `./spotifyer help` for the full list):
+#   playlists | build | export | dedupe | merge | sort
+#
+# Every command runs with the project dir as CWD, so list files and output
+# dirs are resolved relative to /Users/sl/code/spotifyer unless absolute.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$ROOT/.venv"
+PY="$VENV/bin/python"
+cd "$ROOT"
+
+log()  { printf 'spotifyer: %s\n' "$*" >&2; }
+die()  { printf 'spotifyer: error: %s\n' "$*" >&2; exit 1; }
+
+ensure_venv() {
+  if [[ ! -x "$PY" ]]; then
+    log "creating virtualenv (.venv) and installing dependencies..."
+    python3 -m venv "$VENV"
+    "$PY" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
+    "$PY" -m pip install --quiet -r "$ROOT/requirements.txt"
+  fi
+}
+
+load_env() {
+  [[ -f "$ROOT/.env" ]] || die "no .env file. Copy .env.example to .env and fill it in."
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+  # Accept common alias key names so a hand-written .env still works.
+  export SPOTIPY_CLIENT_ID="${SPOTIPY_CLIENT_ID:-${clientid:-${client_id:-${CLIENT_ID:-${SPOTIFY_CLIENT_ID:-}}}}}"
+  export SPOTIPY_CLIENT_SECRET="${SPOTIPY_CLIENT_SECRET:-${clientsecret:-${client_secret:-${CLIENT_SECRET:-${SPOTIFY_CLIENT_SECRET:-}}}}}"
+  export SPOTIPY_REDIRECT_URI="${SPOTIPY_REDIRECT_URI:-${redirect_uri:-${REDIRECT_URI:-${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8888/callback}}}}"
+}
+
+manifest() {
+  cat <<'EOF'
+# spotifyer command manifest (stable contract for scripted/AI use)
+# Invoke as: ./spotifyer <name> <args>   OR   scripts/<name>.sh <args>
+#
+# name       mutating  args
+# ---------  --------   ----------------------------------------------------------
+# doctor     no         (none) -> prints cred/token status, exit 0 when ready
+# login      no         (none) -> opens browser once, caches .cache-spm
+# playlists  no         (none) -> lines: "<id>  <count>  <owner>  <name>"
+# build      YES        <listfile> [--name NAME | --into NAME_OR_ID] [--replace]
+#                       [--default-mode artist|album|track] [--artist-mode recent-album|top]
+#                       [--min-tracks N] [--public] [--dry-run]
+# export     no         [--playlist NAME_OR_ID]... [--out DIR] [--format csv|json|both]
+# dedupe     YES        <playlist> [--by id|name] [--remove-unavailable] [--dry-run]
+# merge      YES        --into TARGET <src>... [--create] [--replace] [--dedupe] [--dry-run]
+# sort       YES        <playlist> [--by release-date|artist|album|added-at] [--desc] [--dry-run]
+#
+# Mutating commands accept --dry-run and print a diff-like report without writing.
+# The scripts/ wrappers default mutating actions to --dry-run unless you pass --apply.
+EOF
+}
+
+usage() {
+  awk 'NR>=3 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  echo
+  echo "Task wrappers in scripts/ :"
+  for f in "$ROOT"/scripts/*.sh; do
+    [[ -e "$f" ]] || continue
+    printf '  scripts/%-16s %s\n' "$(basename "$f")" "$(sed -n 's/^# desc: //p' "$f" | head -1)"
+  done
+}
+
+cmd="${1:-help}"
+[[ $# -gt 0 ]] && shift || true
+
+case "$cmd" in
+  help|-h|--help)      usage ;;
+  commands|manifest)   manifest ;;
+  setup)               ensure_venv; log "ready. Next: ./spotifyer login" ;;
+  doctor)
+    ensure_venv; load_env
+    rc=0
+    for v in SPOTIPY_CLIENT_ID SPOTIPY_CLIENT_SECRET SPOTIPY_REDIRECT_URI; do
+      if [[ -n "${!v:-}" ]]; then printf 'ok       %s\n' "$v"
+      else printf 'MISSING  %s\n' "$v"; rc=1; fi
+    done
+    if [[ -f "$ROOT/.cache-spm" ]]; then echo "ok       auth token (.cache-spm)"
+    else echo "MISSING  auth token — run ./spotifyer login"; rc=1; fi
+    exit $rc ;;
+  login)
+    ensure_venv; load_env
+    exec "$PY" -m spm login "$@" ;;
+  playlists|build|export|dedupe|merge|sort)
+    ensure_venv; load_env
+    exec "$PY" -m spm "$cmd" "$@" ;;
+  *)
+    die "unknown command '$cmd'. Try: ./spotifyer help" ;;
+esac

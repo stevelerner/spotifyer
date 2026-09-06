@@ -1,0 +1,36 @@
+# --- secrets / auth ---
+.env
+.env.*
+!.env.example
+.cache-spm
+.cache
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- tool output ---
+backup/
+dumps/
+playlists/
+*.local.txt
+
+# --- local scratch ---
+screenshots/
+
+# --- editor / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
