@@ -86,20 +86,23 @@ nothing. Do that first.
 
 ```bash
 # Each bare line -> that artist's most recent full-length album
-./spotifyer build bands.example.txt --name "New Releases" --dry-run
-./spotifyer build bands.example.txt --name "New Releases"
+./spotifyer build bands.txt --name "New Releases" --dry-run
+./spotifyer build bands.txt --name "New Releases"
 
 # Treat unprefixed "Artist - Title" lines as tracks instead of artists
 ./spotifyer build songs.txt --name "Mix" --default-mode track
+
+# Build from a JSON file (array of track objects with artist/title fields)
+./spotifyer build tracks.json --name "Mix" --dry-run
 
 # Add into an existing playlist rather than creating one
 ./spotifyer build more.txt --into "New Releases"
 
 # Each artist's top tracks instead of an album
-./spotifyer build bands.example.txt --name "Samplers" --artist-mode top
+./spotifyer build bands.txt --name "Samplers" --artist-mode top
 ```
 
-Line formats (see [`bands.example.txt`](bands.example.txt)):
+**Text file formats** (blank lines and `#` comments ignored):
 
 ```
 Radiohead                        # artist -> most recent full-length album
@@ -107,6 +110,19 @@ artist: Boygenius                # same, explicit
 album:  Fleetwood Mac - Rumours  # the whole album
 track:  Talking Heads - Once in a Lifetime
 ```
+
+**JSON file format** — array of track objects:
+
+```json
+{
+  "tracks": [
+    { "artist": "Artist Name", "title": "Song Title" },
+    { "artist": "Another Artist", "title": "Another Song" }
+  ]
+}
+```
+
+The file extension (`.json` vs `.txt`) determines the parser automatically.
 
 "Most recent full-length" = newest `album`-type release that looks like a single
 studio LP: at least `--min-tracks` tracks (default 7), at most 25, and whose title
@@ -211,10 +227,12 @@ spm/                 implementation
   cli.py             argparse
   commands.py        one function per command
   spotify.py         auth, pagination, playlist read/write, "recent album" logic
-  lists.py           text-list parser
+  lists.py           text and JSON parsers
 scripts/*.sh         safe-by-default task wrappers
-bands.example.txt    sample input
 AGENTS.md            agent/skill instructions (symlinked from .claude/skills/spotifyer/SKILL.md)
 .env                 your credentials (git-ignored)
 .cache-spm           cached OAuth token (git-ignored)
+backup/              export output (git-ignored)
+playlists/           local playlists (git-ignored)
+screenshots/         screenshots (git-ignored)
 ```

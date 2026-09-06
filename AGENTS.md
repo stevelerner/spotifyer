@@ -25,8 +25,9 @@ re-run without `--dry-run`.**
 
 ```bash
 ./spotifyer playlists
-./spotifyer build bands.example.txt --name "New Releases" --dry-run
-./spotifyer build bands.example.txt --name "New Releases"
+./spotifyer build tracks.txt --name "New Releases" --dry-run
+./spotifyer build tracks.json --name "New Releases" --dry-run
+./spotifyer build tracks.txt --name "New Releases"
 ./spotifyer export --out backup --format both
 ./spotifyer dedupe "New Releases" --by name --dry-run
 ./spotifyer merge --into "All" "A" "B" --create --dedupe --dry-run
@@ -35,6 +36,26 @@ re-run without `--dry-run`.**
 
 `PLAYLIST` args take a name (case-insensitive) or an id/URL. Names that match
 more than one playlist error out with the ambiguous ids listed — use an id then.
+
+## Input formats
+
+**Text files** — one entry per line; blank lines and `#` comments ignored:
+```
+Radiohead                   # artist
+artist: Boygenius           # same, explicit
+album: Fleetwood Mac - Rumours
+track: Talking Heads - Once in a Lifetime
+```
+
+**JSON files** — auto-detected by `.json` extension:
+```json
+{
+  "tracks": [
+    { "artist": "Artist Name", "title": "Song Title" },
+    { "artist": "Another Artist", "title": "Another Song" }
+  ]
+}
+```
 
 ## scripts/ wrappers
 
